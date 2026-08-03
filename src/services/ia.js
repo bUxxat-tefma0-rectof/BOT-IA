@@ -8,11 +8,11 @@ class IAService {
     static async gerarTexto(prompt) {
         try {
             const response = await axios.post(
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
+                `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
                 {
                     contents: [{
                         parts: [{
-                            text: `Busque informações atualizadas na internet e responda em português do Brasil: ${prompt}`
+                            text: prompt
                         }]
                     }],
                     tools: [{ googleSearch: {} }],
@@ -29,16 +29,14 @@ class IAService {
             const text = response.data.candidates[0].content.parts[0].text;
             
             let links = '';
-            if (response.data.candidates[0].groundingMetadata) {
-                const sources = response.data.candidates[0].groundingMetadata.groundingChunks || [];
-                if (sources.length > 0) {
-                    links = '\n\n🔗 *Fontes:*\n';
-                    sources.slice(0, 3).forEach((s, i) => {
-                        if (s.web) {
-                            links += `   ${i+1}. ${s.web.title || 'Link'}: ${s.web.uri}\n`;
-                        }
-                    });
-                }
+            const metadata = response.data.candidates[0].groundingMetadata;
+            if (metadata && metadata.groundingChunks) {
+                links = '\n\n🔗 *Fontes:*\n';
+                metadata.groundingChunks.slice(0, 3).forEach((s, i) => {
+                    if (s.web) {
+                        links += `   ${i+1}. ${s.web.title || 'Link'}: ${s.web.uri}\n`;
+                    }
+                });
             }
             
             return text + links;
@@ -60,33 +58,33 @@ class IAService {
             const response = await groq.chat.completions.create({
                 model: 'llama-3.3-70b-versatile',
                 messages: [
-                    { role: 'system', content: 'Responda em português do Brasil de forma útil.' },
+                    { role: 'system', content: 'Responda em português do Brasil.' },
                     { role: 'user', content: prompt }
                 ],
                 max_tokens: 2000
             });
             
-            return response.choices[0].message.content + '\n\n⚠️ _Resposta sem busca na web (Gemini indisponível)_';
+            return response.choices[0].message.content + '\n\n⚠️ _Resposta sem busca na web_';
             
         } catch (err) {
-            throw new Error('Todos os serviços de IA estão indisponíveis. Tente novamente.');
+            throw new Error('IA indisponível. Tente novamente.');
         }
     }
     
     static async gerarImagem(prompt) {
         try {
-            const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true`;
-            return { url: imageUrl, revised_prompt: prompt };
-        } catch (error) {
+            const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true`;
+            return { url, revised_prompt: prompt };
+        } catch (e) {
             throw new Error('Erro ao gerar imagem.');
         }
     }
     
     static async gerarVideo(prompt) {
         try {
-            const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt + ', cinematic, motion')}?width=1024&height=1024&nologo=true`;
-            return { url: imageUrl, mensagem: '🎬 Vídeo conceitual gerado!', revised_prompt: prompt };
-        } catch (error) {
+            const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt + ', cinematic')}?width=1024&height=1024&nologo=true`;
+            return { url, mensagem: '🎬 Vídeo gerado!', revised_prompt: prompt };
+        } catch (e) {
             throw new Error('Erro ao gerar vídeo.');
         }
     }
