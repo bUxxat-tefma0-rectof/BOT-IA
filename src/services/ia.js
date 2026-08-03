@@ -1,72 +1,53 @@
-const OpenAI = require('openai');
+const axios = require('axios');
 const logger = require('../utils/helpers');
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-});
+const GROQ_API_KEY = process.env.GROQ_API_KEY || 'gsk_SuaChaveGroqAqui';
 
 class IAService {
     
-    // Conversa com IA (DALL-E para imagem, GPT para texto)
     static async gerarTexto(prompt) {
         try {
-            const response = await openai.chat.completions.create({
-                model: 'gpt-4o-mini',
+            const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
+                model: 'llama-3.3-70b-versatile',
                 messages: [
-                    { role: 'system', content: 'Você é um assistente inteligente e criativo. Responda em português de forma útil e amigável.' },
+                    { role: 'system', content: 'Você é um assistente inteligente e criativo. Responda em português.' },
                     { role: 'user', content: prompt }
                 ],
                 max_tokens: 1000
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${GROQ_API_KEY}`,
+                    'Content-Type': 'application/json'
+                }
             });
             
-            return response.choices[0].message.content;
+            return response.data.choices[0].message.content;
         } catch (error) {
-            logger.error('Erro IA texto: ' + error.message);
-            throw new Error('Erro ao gerar texto. Tente novamente.');
+            logger.error('Erro IA: ' + (error.response?.data?.error?.message || error.message));
+            throw new Error('Erro ao gerar texto.');
         }
     }
     
-    // Gerar imagem com DALL-E
     static async gerarImagem(prompt) {
+        // Groq não gera imagens, então usamos uma API gratuita alternativa
         try {
-            const response = await openai.images.generate({
-                model: 'dall-e-3',
-                prompt: prompt,
-                n: 1,
-                size: '1024x1024',
-                quality: 'standard'
+            const response = await axios.post('https://api.deepai.org/api/text2img', {
+                text: prompt
+            }, {
+                headers: { 'api-key': 'quickstart-QUdJIGlzIGNvbWluZy4uLi4K' }
             });
             
             return {
-                url: response.data[0].url,
-                revised_prompt: response.data[0].revised_prompt
+                url: response.data.output_url,
+                revised_prompt: prompt
             };
         } catch (error) {
-            logger.error('Erro IA imagem: ' + error.message);
-            throw new Error('Erro ao gerar imagem. Tente novamente.');
+            throw new Error('Erro ao gerar imagem. Use /creditos para comprar mais.');
         }
     }
     
-    // Gerar vídeo (usando descrição + imagem)
     static async gerarVideo(prompt) {
-        try {
-            // Primeiro gera uma imagem
-            const imagem = await this.gerarImagem(prompt);
-            
-            // Depois gera um vídeo curto a partir da imagem
-            // (OpenAI ainda não tem Sora público, usamos Runway ou Pika)
-            // Por enquanto, retorna a imagem com efeito de vídeo
-            
-            // Simulação: retorna a imagem como "vídeo"
-            return {
-                url: imagem.url,
-                mensagem: '🎬 Vídeo gerado a partir da sua descrição!',
-                revised_prompt: imagem.revised_prompt
-            };
-        } catch (error) {
-            logger.error('Erro IA vídeo: ' + error.message);
-            throw new Error('Erro ao gerar vídeo. Tente novamente.');
-        }
+        throw new Error('Geração de vídeo requer créditos. Use /creditos para comprar.');
     }
 }
 
