@@ -1,0 +1,163 @@
+version: '3.8'
+
+services:
+  bot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: tech_offers_bot_prod
+    restart: always
+    env_file:
+      - ../.env.production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../logs:/app/logs
+      - ../backups:/app/backups
+    networks:
+      - tech_offers_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: tech_offers_postgres_prod
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tech_offers}
+      POSTGRES_USER: ${POSTGRES_USER:-tech_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - tech_offers_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tech_user} -d ${POSTGRES_DB:-tech_offers}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    image: redis:7-alpine
+    container_name: tech_offers_redis_prod
+    restart: always
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - tech_offers_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  monitoring_worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: tech_offers_monitoring_prod
+    restart: always
+    command: python -m workers.monitoring_worker
+    env_file:
+      - ../.env.production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../logs:/app/logs
+    networks:
+      - tech_offers_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  scheduler_worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: tech_offers_scheduler_prod
+    restart: always
+    command: python -m workers.scheduler_worker
+    env_file:
+      - ../.env.production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../logs:/app/logs
+    networks:
+      - tech_offers_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Serviço de backup
+  backup:
+    image: postgres:15-alpine
+    container_name: tech_offers_backup
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ../backups:/backups
+      - ./backup.sh:/backup.sh
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tech_offers}
+      POSTGRES_USER: ${POSTGRES_USER:-tech_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: postgres
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      "
+      while true; do
+        PGPASSWORD=$$POSTGRES_PASSWORD pg_dump -h $$POSTGRES_HOST -U $$POSTGRES_USER $$POSTGRES_DB > /backups/backup_$$(date +%Y%m%d_%H%M%S).sql
+        find /backups -name 'backup_*.sql' -mtime +30 -delete
+        sleep 86400
+      done
+      "
+    networks:
+      - tech_offers_network
+
+volumes:
+  postgres_data:
+    name: tech_offers_postgres_data_prod
+  redis_data:
+    name: tech_offers_redis_data_prod
+
+networks:
+  tech_offers_network:
+    name: tech_offers_network
+    driver: bridge
