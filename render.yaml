@@ -1,0 +1,116 @@
+services:
+  # Bot Principal
+  - type: web
+    name: tech-offers-bot
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: bash start.sh
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.7
+      - key: BOT_TOKEN
+        sync: false
+      - key: ADMIN_ID
+        sync: false
+      - key: CHANNEL_ID
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tech-offers-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: tech-offers-redis
+          type: redis
+          property: connectionString
+      - key: DEBUG
+        value: "False"
+      - key: LOG_LEVEL
+        value: "INFO"
+      - key: TIMEZONE
+        value: "America/Sao_Paulo"
+      - key: SHOPEE_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+    autoDeploy: true
+
+  # Worker de Monitoramento
+  - type: worker
+    name: tech-offers-monitoring-worker
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m workers.monitoring_worker
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.7
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tech-offers-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: tech-offers-redis
+          type: redis
+          property: connectionString
+      - key: BOT_TOKEN
+        sync: false
+      - key: ADMIN_ID
+        sync: false
+      - key: CHANNEL_ID
+        sync: false
+      - key: DEBUG
+        value: "False"
+      - key: LOG_LEVEL
+        value: "INFO"
+      - key: TIMEZONE
+        value: "America/Sao_Paulo"
+    autoDeploy: true
+
+  # Worker de Agendamento
+  - type: worker
+    name: tech-offers-scheduler-worker
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m workers.scheduler_worker
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.7
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tech-offers-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: tech-offers-redis
+          type: redis
+          property: connectionString
+      - key: BOT_TOKEN
+        sync: false
+      - key: ADMIN_ID
+        sync: false
+      - key: CHANNEL_ID
+        sync: false
+      - key: DEBUG
+        value: "False"
+      - key: LOG_LEVEL
+        value: "INFO"
+      - key: TIMEZONE
+        value: "America/Sao_Paulo"
+    autoDeploy: true
+
+# Banco de Dados PostgreSQL
+databases:
+  - name: tech-offers-db
+    plan: free
+    databaseName: tech_offers
+    user: tech_user
+
+# Redis para cache e filas
+  - name: tech-offers-redis
+    plan: free
+    ipAllowList: []
