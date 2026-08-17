@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  bot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: tech_offers_bot
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ../logs:/app/logs
+      - ../backups:/app/backups
+    networks:
+      - tech_offers_network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: tech_offers_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tech_offers
+      POSTGRES_USER: tech_user
+      POSTGRES_PASSWORD: tech_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - tech_offers_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tech_user -d tech_offers"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: tech_offers_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_password}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - tech_offers_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Worker de monitoramento
+  monitoring_worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: tech_offers_monitoring
+    restart: unless-stopped
+    command: python -m workers.monitoring_worker
+    env_file:
+      - ../.env
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ../logs:/app/logs
+    networks:
+      - tech_offers_network
+
+  # Worker de agendamento
+  scheduler_worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: tech_offers_scheduler
+    restart: unless-stopped
+    command: python -m workers.scheduler_worker
+    env_file:
+      - ../.env
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ../logs:/app/logs
+    networks:
+      - tech_offers_network
+
+volumes:
+  postgres_data:
+    name: tech_offers_postgres_data
+  redis_data:
+    name: tech_offers_redis_data
+
+networks:
+  tech_offers_network:
+    name: tech_offers_network
+    driver: bridge
