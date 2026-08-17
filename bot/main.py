@@ -1,5 +1,5 @@
 """
-Arquivo principal do bot
+Arquivo principal do bot - Versão Final Completa
 """
 import asyncio
 import logging
@@ -10,17 +10,38 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import BotCommand, BotCommandScopeDefault
 from loguru import logger
+from datetime import datetime
 from config import settings
 from database.session import db_manager, init_database
 from redis_manager import redis_manager, init_redis
+
+# Importar todos os handlers
 from bot.handlers.user_handlers import router as user_router
 from bot.handlers.admin_handlers import router as admin_router
 from bot.handlers.callback_handlers import router as callback_router
+from bot.handlers.admin_crud_handlers import router as admin_crud_router
+from bot.handlers.template_handlers import router as template_router
+from bot.handlers.category_handlers import router as category_router
+from bot.handlers.schedule_handlers import router as schedule_router
+from bot.handlers.button_config_handlers import router as button_router
+from bot.handlers.stats_handlers import router as stats_router
+
+# Importar middlewares
 from bot.middlewares.auth_middleware import AuthMiddleware, AdminMiddleware
 from bot.middlewares.channel_middleware import ChannelMembershipMiddleware
+
+# Importar serviços
 from services.product_service import ProductService
 from services.publication_service import PublicationService
 from services.alert_service import AlertService
+from services.monitoring_service import MonitoringService
+from services.analytics_service import AnalyticsService
+from services.ai_service import AIService
+from services.template_service import TemplateService
+from services.button_config_service import ButtonConfigService
+from services.schedule_service import ScheduleService
+
+# Importar workers
 from workers.scheduler_worker import SchedulerWorker
 from workers.monitoring_worker import MonitoringWorker
 
@@ -35,10 +56,16 @@ class TechOffersBot:
         self.scheduler_worker = None
         self.monitoring_worker = None
         
-        # Serviços
+        # Inicializar serviços
         self.product_service = ProductService()
         self.publication_service = PublicationService()
         self.alert_service = AlertService()
+        self.monitoring_service = MonitoringService()
+        self.analytics_service = AnalyticsService()
+        self.ai_service = AIService()
+        self.template_service = TemplateService()
+        self.button_service = ButtonConfigService()
+        self.schedule_service = ScheduleService()
         
     async def setup(self):
         """Configura o bot e seus componentes"""
@@ -69,8 +96,14 @@ class TechOffersBot:
             self.dp.callback_query.middleware(AuthMiddleware())
             self.dp.message.middleware(AuthMiddleware())
             
-            # Registrar routers
+            # Registrar todos os routers
             self.dp.include_router(admin_router)
+            self.dp.include_router(admin_crud_router)
+            self.dp.include_router(template_router)
+            self.dp.include_router(category_router)
+            self.dp.include_router(schedule_router)
+            self.dp.include_router(button_router)
+            self.dp.include_router(stats_router)
             self.dp.include_router(user_router)
             self.dp.include_router(callback_router)
             
@@ -112,10 +145,10 @@ class TechOffersBot:
             
             # Iniciar workers
             if self.scheduler_worker:
-                await self.scheduler_worker.start()
+                asyncio.create_task(self.scheduler_worker.start())
             
             if self.monitoring_worker:
-                await self.monitoring_worker.start()
+                asyncio.create_task(self.monitoring_worker.start())
             
             logger.info("🚀 Bot started successfully")
             
@@ -167,12 +200,8 @@ async def main():
 
 if __name__ == "__main__":
     # Configurar logging
-    logger.add(
-        f"{settings.LOGS_DIR}/bot_{datetime.now().strftime('%Y%m%d')}.log",
-        rotation="500 MB",
-        retention="30 days",
-        level=settings.LOG_LEVEL
-    )
+    from utils.logger import setup_logger
+    setup_logger()
     
     # Executar bot
     asyncio.run(main())
