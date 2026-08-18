@@ -4,7 +4,7 @@ from aiogram import Bot, Dispatcher, F
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, ForceReply
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -37,7 +37,13 @@ async def cmd_start(message: Message):
 @dp.callback_query(F.data == "make_complaint")
 async def make_complaint(callback: CallbackQuery, state: FSMContext):
     await state.set_state(SupportStates.waiting_complaint)
-    await callback.message.answer("📝 Explique o que aconteceu:")
+    
+    # FORCE REPLY - Abre a caixa de digitação automaticamente
+    await callback.message.answer(
+        "📝 <b>Explique o que aconteceu:</b>\n\n"
+        "Digite sua reclamação abaixo 👇",
+        reply_markup=ForceReply(selective=True)
+    )
     await callback.answer()
 
 @dp.message(SupportStates.waiting_complaint)
@@ -60,8 +66,17 @@ async def process_complaint(message: Message, state: FSMContext):
             InlineKeyboardButton(text="🔒 FECHAR", callback_data=f"close_{message.from_user.id}"),
         ]
     ]
-    await message.bot.send_message(chat_id=SUPPORT_GROUP_ID, text=support_text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard))
-    await message.answer("✅ Reclamação enviada!")
+    
+    try:
+        await message.bot.send_message(
+            chat_id=SUPPORT_GROUP_ID,
+            text=support_text,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
+        )
+        await message.answer("✅ Reclamação enviada!")
+    except Exception as e:
+        await message.answer("❌ Erro ao enviar. Tente novamente.")
+    
     await state.clear()
 
 @dp.callback_query(F.data.startswith("reply_"))
@@ -72,7 +87,12 @@ async def reply_to_user(callback: CallbackQuery, state: FSMContext):
     user_id = int(callback.data.replace("reply_", ""))
     await state.update_data(replying_to=user_id)
     await state.set_state(SupportStates.waiting_reply)
-    await callback.message.answer("💬 Envie sua resposta:")
+    
+    # FORCE REPLY para admin responder
+    await callback.message.answer(
+        "💬 <b>Envie sua resposta:</b>",
+        reply_markup=ForceReply(selective=True)
+    )
     await callback.answer()
 
 @dp.message(SupportStates.waiting_reply)
@@ -82,7 +102,10 @@ async def send_reply(message: Message, state: FSMContext):
     data = await state.get_data()
     user_id = data.get('replying_to')
     if user_id:
-        await message.bot.send_message(chat_id=user_id, text=f"💬 <b>RESPOSTA DO SUPORTE:</b>\n\n{message.text}")
+        await message.bot.send_message(
+            chat_id=user_id,
+            text=f"💬 <b>RESPOSTA DO SUPORTE:</b>\n\n{message.text}"
+        )
         await message.answer("✅ Resposta enviada!")
     await state.clear()
 
@@ -92,7 +115,10 @@ async def mark_resolved(callback: CallbackQuery):
         await callback.answer("⛔ Acesso negado!", show_alert=True)
         return
     user_id = int(callback.data.replace("resolved_", ""))
-    await callback.bot.send_message(chat_id=user_id, text="✅ Sua reclamação foi RESOLVIDA!")
+    try:
+        await callback.bot.send_message(chat_id=user_id, text="✅ Sua reclamação foi RESOLVIDA!")
+    except:
+        pass
     await callback.message.edit_text(callback.message.text + "\n\n✅ RESOLVIDO")
     await callback.answer("✅ Resolvido!")
 
@@ -102,7 +128,10 @@ async def close_ticket(callback: CallbackQuery):
         await callback.answer("⛔ Acesso negado!", show_alert=True)
         return
     user_id = int(callback.data.replace("close_", ""))
-    await callback.bot.send_message(chat_id=user_id, text="🔒 Ticket fechado.")
+    try:
+        await callback.bot.send_message(chat_id=user_id, text="🔒 Ticket fechado.")
+    except:
+        pass
     await callback.message.edit_text(callback.message.text + "\n\n🔒 FECHADO")
     await callback.answer("🔒 Fechado!")
 
