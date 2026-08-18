@@ -29,13 +29,10 @@ def get_user_keyboard():
 
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
-    if message.from_user.id == ADMIN_ID:
-        await message.answer(f"👋 Olá Admin {message.from_user.first_name}!")
-    else:
-        await message.answer(
-            f"👋 Olá {message.from_user.first_name}!\n\nComo posso ajudar?",
-            reply_markup=get_user_keyboard()
-        )
+    await message.answer(
+        f"👋 Olá {message.from_user.first_name}!\n\nComo posso ajudar?",
+        reply_markup=get_user_keyboard()
+    )
 
 @dp.callback_query(F.data == "make_complaint")
 async def make_complaint(callback: CallbackQuery, state: FSMContext):
@@ -54,7 +51,6 @@ async def process_complaint(message: Message, state: FSMContext):
         f"🕐 <b>Hora:</b> {datetime.now().strftime('%H:%M')}\n\n"
         f"📝 <b>Reclamação:</b>\n{message.text}"
     )
-    
     keyboard = [
         [
             InlineKeyboardButton(text="✅ RESOLVIDO", callback_data=f"resolved_{message.from_user.id}"),
@@ -64,13 +60,7 @@ async def process_complaint(message: Message, state: FSMContext):
             InlineKeyboardButton(text="🔒 FECHAR", callback_data=f"close_{message.from_user.id}"),
         ]
     ]
-    
-    await message.bot.send_message(
-        chat_id=SUPPORT_GROUP_ID,
-        text=support_text,
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
-    )
-    
+    await message.bot.send_message(chat_id=SUPPORT_GROUP_ID, text=support_text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard))
     await message.answer("✅ Reclamação enviada!")
     await state.clear()
 
@@ -79,7 +69,6 @@ async def reply_to_user(callback: CallbackQuery, state: FSMContext):
     if callback.from_user.id != ADMIN_ID:
         await callback.answer("⛔ Acesso negado!", show_alert=True)
         return
-    
     user_id = int(callback.data.replace("reply_", ""))
     await state.update_data(replying_to=user_id)
     await state.set_state(SupportStates.waiting_reply)
@@ -90,17 +79,11 @@ async def reply_to_user(callback: CallbackQuery, state: FSMContext):
 async def send_reply(message: Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
         return
-    
     data = await state.get_data()
     user_id = data.get('replying_to')
-    
     if user_id:
-        await message.bot.send_message(
-            chat_id=user_id,
-            text=f"💬 <b>RESPOSTA DO SUPORTE:</b>\n\n{message.text}"
-        )
+        await message.bot.send_message(chat_id=user_id, text=f"💬 <b>RESPOSTA DO SUPORTE:</b>\n\n{message.text}")
         await message.answer("✅ Resposta enviada!")
-    
     await state.clear()
 
 @dp.callback_query(F.data.startswith("resolved_"))
@@ -108,7 +91,6 @@ async def mark_resolved(callback: CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
         await callback.answer("⛔ Acesso negado!", show_alert=True)
         return
-    
     user_id = int(callback.data.replace("resolved_", ""))
     await callback.bot.send_message(chat_id=user_id, text="✅ Sua reclamação foi RESOLVIDA!")
     await callback.message.edit_text(callback.message.text + "\n\n✅ RESOLVIDO")
@@ -119,7 +101,6 @@ async def close_ticket(callback: CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
         await callback.answer("⛔ Acesso negado!", show_alert=True)
         return
-    
     user_id = int(callback.data.replace("close_", ""))
     await callback.bot.send_message(chat_id=user_id, text="🔒 Ticket fechado.")
     await callback.message.edit_text(callback.message.text + "\n\n🔒 FECHADO")
@@ -127,8 +108,6 @@ async def close_ticket(callback: CallbackQuery):
 
 async def main():
     print("🤖 Bot iniciado!")
-    print(f"Admin ID: {ADMIN_ID}")
-    print(f"Grupo: {SUPPORT_GROUP_ID}")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
